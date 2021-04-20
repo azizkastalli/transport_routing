@@ -3,8 +3,9 @@ import networkx as nx
 
 class DynTM:
     #init object
-    def __init__(self, max_walk_between_stations, walk_speed):
+    def __init__(self, max_walk_between_stations, station_coords, walk_speed):
         self.dtm = nx.DiGraph()
+        self.__station_coords = station_coords 
         self.max_walk_between_stations = max_walk_between_stations
         self.walk_speed = walk_speed
         #target node without any connection
@@ -73,5 +74,53 @@ class DynTM:
                 #add unrestricted paths to the graph in both ways
                 key = int(float(key))
                 station = int(float(station))
-                self.dtm.add_edge(('switch',station) ,('switch',key), weight=weight_time)
-                self.dtm.add_edge(('switch',key) ,('switch',station), weight=weight_time)
+                self.dtm.add_edge(('switch',station) ,('switch',key), weight = weight_time)
+                self.dtm.add_edge(('switch',key) ,('switch',station), weight = weight_time)
+
+    def __haversine_distance(self, x, y):
+        R = 6378137
+        #convert to raduis
+        lat1  = x[0] * np.pi/180
+        long1 = x[1] * np.pi/180
+        lat2  = y[0] * np.pi/180
+        long2 = y[1] * np.pi/180
+        #calculate haversine distance
+        delta_longitude = long1 - long2
+        delta_latitude = lat1 - lat2
+        a = (np.sin(delta_latitude/2)**2) + np.cos(lat1)*np.cos(lat2)*(np.sin(delta_longitude/2)**2)
+        c = 2*np.arctan2(np.sqrt(a),np.sqrt(1-a))
+        distance = R*c
+        return  distance
+
+    def add_sourceNode(self, coords, max_StationDistance = np.inf ):
+        #add node to graph:
+        self.dtm.add_node('switch_source')
+        #add unrestricted source node paths
+        for stop in self.__station_coords.values : 
+            #calculate distance between stop and source
+            distance =  self.__haversine_distance(coords, stop[1:])
+            if distance <= max_StationDistance :
+                #add edge to the graph 
+                weight_time = distance/self.walk_speed
+                self.dtm.add_edge('switch_source', ('switch', stop[0]) , weight = weight_time)
+
+    def add_targetNode(self, coords, max_StationDistance = np.inf ):
+        #add node to graph:
+        self.dtm.add_node('switch_target')
+        #add unrestricted source node paths
+        for stop in self.__station_coords.values : 
+            #calculate distance between stop and source
+            distance =  self.__haversine_distance(coords, stop[1:])
+            if distance <= max_StationDistance :
+                #add edge to the graph 
+                weight_time = distance/self.walk_speed
+                self.dtm.add_edge( ('switch', stop[0]), 'switch_target', weight = weight_time)
+
+    def remove_switch(self, switch):
+        self.dtm.remove_node(switch)
+
+
+    def remove_trip(self, vehicle_id):
+        for node in self.dtm.items():
+            if vehicle_id in node :
+                self.dtm.remove_node(node)
